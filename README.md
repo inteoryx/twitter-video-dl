@@ -2,7 +2,7 @@
 Download twitter videos as mp4 files without API key, ffmpeg, or anything but python and a url.
 
 # Usage
-1. Clone the repo.
+1. Clone the repo and pip install -r requirements.txt (just the requests library)
 2. See a video on twitter that you want to save.
 3. Invoke the script, e.g.: python twitter-video-dl.py https://twitter.com/willowhalliwell/status/1452460936116244482 output_file_name
 
