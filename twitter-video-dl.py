@@ -1,6 +1,5 @@
 import requests
 import json
-import shutil
 import argparse
 import re
 
