@@ -7,7 +7,7 @@ GUEST_TOKEN_ENDPOINT = "https://api.twitter.com/1.1/guest/activate.json"
 STATUS_ENDPOINT      = "https://twitter.com/i/api/graphql/"
 
 QUOTED_VALUE  = re.compile("[\"']([^\"']+)[\"']")
-MP4_PART    = re.compile("/.+mp4|/.+m4s")
+MP4_PART    = re.compile("/.+mp4$|/.+m4s$")
 VIDEO_BASE  = "https://video.twimg.com"
 CONTAINER_PATTERN = re.compile("['\"](http[^'\"]+&container=fmp4)")
 
