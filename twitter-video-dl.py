@@ -4,12 +4,13 @@ import argparse
 import re
 
 GUEST_TOKEN_ENDPOINT = "https://api.twitter.com/1.1/guest/activate.json"
-STATUS_ENDPOINT      = "https://twitter.com/i/api/graphql/"
+STATUS_ENDPOINT = "https://twitter.com/i/api/graphql/"
 
-QUOTED_VALUE  = re.compile("[\"']([^\"']+)[\"']")
-MP4_PART    = re.compile("/.+mp4$|/.+m4s$")
-VIDEO_BASE  = "https://video.twimg.com"
+QUOTED_VALUE = re.compile("[\"']([^\"']+)[\"']")
+MP4_PART = re.compile("/.+\.mp4|/.+m4s$")
+VIDEO_BASE = "https://video.twimg.com"
 CONTAINER_PATTERN = re.compile("['\"](http[^'\"]+&container=fmp4)")
+
 
 def send_request(url, session_method, headers):
     response = session_method(url, headers=headers, stream=True)
@@ -23,41 +24,41 @@ def search_json(j, target_key, result):
         for key in j:
             if key == target_key:
                 result.append(j[key])
-                
+
             search_json(j[key], target_key, result)
         return result
-        
+
     if type(j) == list:
         for item in j:
             search_json(item, target_key, result)
-        
+
         return result
-    
+
     return result
 
 
 def merge_files(f1, f2):
     for line in f2:
         f1.write(line)
-        
+
     return f1
 
 
 def download_video_parts(parts, fname):
     result = open(fname, "wb")
-    
+
     paths = []
     for part in parts:
         paths.extend(MP4_PART.findall(part))
-        
+
     for path in paths:
         full_path = f"{VIDEO_BASE}{path}"
-        resp = requests.get(full_path, stream = True)
+        resp = requests.get(full_path, stream=True)
         assert resp.status_code == 200, f"Failed requesting {full_path}.  Please try again or report this as an issue. {resp}"
-        
         merge_files(result, resp.raw)
-    
+
     return result
+
 
 def download_video(video_url, file_name):
 
@@ -72,43 +73,46 @@ def download_video(video_url, file_name):
 
     # One of the js files from original url holds the bearer token and query id.
     container = send_request(video_url, session.get, headers)
-    js_files  = re.findall("src=['\"]([^'\"()]*js)['\"]", container)
-
+    js_files = re.findall("src=['\"]([^'\"()]*js)['\"]", container)
 
     bearer_token = None
     query_id = None
     # Search the javascript files for a bearer token and TweetDetail queryId
     for f in js_files:
         file_content = send_request(f, session.get, headers)
-        bt = re.search('["\'](AAA[a-zA-Z0-9%-]+%[a-zA-Z0-9%-]+)["\']', file_content)
-        
+        bt = re.search(
+            '["\'](AAA[a-zA-Z0-9%-]+%[a-zA-Z0-9%-]+)["\']', file_content)
+
         ops = re.findall('\{queryId:"[a-zA-Z0-9_]+[^\}]+"', file_content)
         query_op = [op for op in ops if "TweetDetail" in op]
 
         if len(query_op) == 1:
             query_id = re.findall('queryId:"([^"]+)"', query_op[0])[0]
-        
+
         if bt:
             bearer_token = bt.group(1)
 
     assert bearer_token, f"Did not find bearer token.  Are you sure you used the right URL? {video_url}"
     assert query_id, f"Did not find query id.  Are you sure you used the right twitter URL? {video_url}"
 
-    headers['authorization'] =  f"Bearer {bearer_token}"
+    headers['authorization'] = f"Bearer {bearer_token}"
 
-    guest_token_resp = send_request(GUEST_TOKEN_ENDPOINT, session.post, headers)
+    guest_token_resp = send_request(
+        GUEST_TOKEN_ENDPOINT, session.post, headers)
     guest_token = json.loads(guest_token_resp)['guest_token']
     assert guest_token, f"Did not find guest token.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
     headers['x-guest-token'] = guest_token
 
-    status_resp = send_request(f"{STATUS_ENDPOINT}{query_id}/{status_params}", session.get, headers)
-    container_urls  = CONTAINER_PATTERN.findall(status_resp)
+    status_resp = send_request(
+        f"{STATUS_ENDPOINT}{query_id}/{status_params}", session.get, headers)
+    container_urls = CONTAINER_PATTERN.findall(status_resp)
     assert container_urls, f"Did not find container URLs.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
 
     video_containers = []
     for container in container_urls:
         video_details = send_request(container, session.get, headers)
-        video_suffixes = re.findall("(/[a-zA-Z0-9_?\/\.]*=fmp4)", video_details)
+        video_suffixes = re.findall(
+            "(/[a-zA-Z0-9_?\/\.]*=fmp4)", video_details)
 
         resolutions = []
         for vs in video_suffixes:
@@ -124,9 +128,11 @@ def download_video(video_url, file_name):
 
     for i, vc in enumerate(video_containers):
         download_video_parts(
-        send_request(f"{VIDEO_BASE}{vc[0]}", session.get, headers).split("#"),
-        f"{file_name}.mp4" if i == 0 else f"{file_name}-{i}.mp4"
-    )
+            send_request(f"{VIDEO_BASE}{vc[0]}",
+                         session.get, headers).split("#"),
+            f"{file_name}.mp4" if i == 0 else f"{file_name}-{i}.mp4"
+        )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -134,8 +140,8 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "twitter_url", 
-        type=str, 
+        "twitter_url",
+        type=str,
         help="Twitter URL to download.  e.g. https://twitter.com/GOTGTheGame/status/1451361961782906889"
     )
 
@@ -146,5 +152,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    
-    download_video(args.twitter_url, args.file_name if args.file_name[-4:] != ".mp4" else args.file_name[:-4])
+
+    download_video(
+        args.twitter_url, args.file_name if args.file_name[-4:] != ".mp4" else args.file_name[:-4])
