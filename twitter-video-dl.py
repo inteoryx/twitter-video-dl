@@ -23,7 +23,7 @@ def search_json(j, target_key, result):
     if type(j) == dict:
         for key in j:
             if key == target_key:
-                result.append(j[key])
+                result.extend(j[key])
 
             search_json(j[key], target_key, result)
         return result
@@ -61,6 +61,8 @@ def download_video_parts(parts, fname):
 
 
 def download_video(video_url, file_name):
+    # if file_name ends in .mp4 leave it alone otherwise add .mp4
+    file_name = file_name if file_name.endswith(".mp4") else f"{file_name}.mp4" 
 
     video_ids = re.findall("status/([0-9]+)", video_url)
 
@@ -105,9 +107,32 @@ def download_video(video_url, file_name):
 
     status_resp = send_request(
         f"{STATUS_ENDPOINT}{query_id}/{status_params}", session.get, headers)
-    container_urls = CONTAINER_PATTERN.findall(status_resp)
-    assert container_urls, f"Did not find container URLs.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
 
+    container_urls = CONTAINER_PATTERN.findall(status_resp)
+
+    # Small videos have no container just an mp4 link
+    if not container_urls:
+        status_resp_j = json.loads(status_resp)
+        variants = search_json(status_resp_j, "variants", [])
+
+        # filter variants to content_type = video/mp4
+        variants = [v for v in variants if v['content_type'] == "video/mp4"]
+
+        # select the highest bitrate variant
+        variants.sort(key=lambda x: x["bitrate"], reverse=True)
+
+        assert variants, f"Did not find a single variant.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
+
+        # download the mp4
+        video_data = requests.get(variants[0]["url"]).content
+
+        with open(file_name, "wb") as f:
+            f.write(video_data)
+
+        return
+    
+    assert container_urls, f"Did not find container URLs.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
+    
     video_containers = []
     for container in container_urls:
         video_details = send_request(container, session.get, headers)
