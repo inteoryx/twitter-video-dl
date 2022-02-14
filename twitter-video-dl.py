@@ -21,18 +21,17 @@ def send_request(url, session_method, headers):
 
 def search_json(j, target_key, result):
     if type(j) == dict:
-        for key in j:
+        for key, value in j.items():
             if key == target_key:
-                result.extend(j[key])
-
-            search_json(j[key], target_key, result)
-        return result
+                if type(value) == list:
+                    result.extend(value)
+                else:
+                    result.append(value)
+            search_json(value, target_key, result)
 
     if type(j) == list:
         for item in j:
             search_json(item, target_key, result)
-
-        return result
 
     return result
 
@@ -62,7 +61,6 @@ def download_video_parts(parts, fname):
 
 def download_video(video_url, file_name):
     # if file_name ends in .mp4 leave it alone otherwise add .mp4
-    file_name = file_name if file_name.endswith(".mp4") else f"{file_name}.mp4" 
 
     video_ids = re.findall("status/([0-9]+)", video_url)
 
@@ -108,55 +106,66 @@ def download_video(video_url, file_name):
     status_resp = send_request(
         f"{STATUS_ENDPOINT}{query_id}/{status_params}", session.get, headers)
 
-    container_urls = CONTAINER_PATTERN.findall(status_resp)
+    status_json = json.loads(status_resp)
+    
+    legacies = search_json(status_json, "legacy", [])
+    legacy = [l for l in legacies if "id_str" in l and l["id_str"] == video_id]
 
-    # Small videos have no container just an mp4 link
-    if not container_urls:
-        status_resp_j = json.loads(status_resp)
-        variants = search_json(status_resp_j, "variants", [])
+    assert legacy and len(legacy) == 1, f"Did not find video.  Please confirm you are using the correct link.  If you are report this as an issue including this message.  {video_url}"
 
-        # filter variants to content_type = video/mp4
-        variants = [v for v in variants if v['content_type'] == "video/mp4"]
+    legacy = legacy[0]
 
-        # select the highest bitrate variant
-        variants.sort(key=lambda x: x["bitrate"], reverse=True)
+    variants = search_json(legacy, "variants", [])
+    variants = [v for v in variants if 'bitrate' in v]
 
-        assert variants, f"Did not find a single variant.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
+    if variants:
+        # Find the highest bitrate variant
+        variants.sort(key=lambda x: x['bitrate'], reverse=True)
+        variant = variants[0]
 
-        # download the mp4
-        video_data = requests.get(variants[0]["url"]).content
+        video_data = requests.get(variant["url"]).content
 
         with open(file_name, "wb") as f:
             f.write(video_data)
+    else:
+        # Some tweets have a "legacy" format that this handles
+        container_urls = CONTAINER_PATTERN.findall(status_resp)
+        video_containers = []
 
-        return
-    
-    assert container_urls, f"Did not find container URLs.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
-    
-    video_containers = []
-    for container in container_urls:
-        video_details = send_request(container, session.get, headers)
-        video_suffixes = re.findall(
-            "(/[a-zA-Z0-9_?\/\.]*=fmp4)", video_details)
+        for container in container_urls:
+            video_details = send_request(container, session.get, headers)
+            video_suffixes = re.findall(
+                "(/[a-zA-Z0-9_?\/\.]*=fmp4)", video_details)
 
-        resolutions = []
-        for vs in video_suffixes:
-            resolution = re.findall("([0-9]+)x([0-9]+)", vs)[0]
-            resolutions.append((vs, int(resolution[0]) * int(resolution[1])))
-            resolutions.sort(key=lambda x: x[1])
+            resolutions = []
+            for vs in video_suffixes:
+                resolution = re.findall("([0-9]+)x([0-9]+)", vs)[0]
+                resolutions.append((vs, int(resolution[0]) * int(resolution[1])))
+                resolutions.sort(key=lambda x: x[1])
 
-        if len(resolutions) > 0:
-            video_containers.append(resolutions[-1])
+            if len(resolutions) > 0:
+                video_containers.append(resolutions[-1])
 
-    video_containers = set(video_containers)
-    assert video_containers, f"Did not find video container.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
+        video_containers = set(video_containers)
+        assert video_containers, f"Did not find video container.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
 
-    for i, vc in enumerate(video_containers):
-        download_video_parts(
-            send_request(f"{VIDEO_BASE}{vc[0]}",
-                         session.get, headers).split("#"),
-            f"{file_name}.mp4" if i == 0 else f"{file_name}-{i}.mp4"
-        )
+        if len(video_containers) == 1:
+            vc = video_containers.pop()
+            parts = send_request(f"{VIDEO_BASE}{vc[0]}", session.get, headers).split("#")
+
+            download_video_parts(
+                parts,
+                file_name
+            )
+        else:   
+
+            for i, vc in enumerate(video_containers):
+                parts = send_request(f"{VIDEO_BASE}{vc[0]}", session.get, headers).split("#")
+
+                download_video_parts(
+                    parts,
+                    f"{i}-{file_name}"
+                )
 
 
 if __name__ == "__main__":
@@ -178,5 +187,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    download_video(
-        args.twitter_url, args.file_name if args.file_name[-4:] != ".mp4" else args.file_name[:-4])
+    file_name = args.file_name if args.file_name.endswith(".mp4") else args.file_name + ".mp4"
+
+    download_video(args.twitter_url, file_name)
