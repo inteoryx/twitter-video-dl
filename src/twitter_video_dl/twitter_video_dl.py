@@ -2,20 +2,19 @@ import requests
 import json
 import argparse
 import re
+import urllib.parse
 
 GUEST_TOKEN_ENDPOINT = "https://api.twitter.com/1.1/guest/activate.json"
 STATUS_ENDPOINT = "https://twitter.com/i/api/graphql/"
-FEATURES_SUFFIX = "&features%3D%7B%22dont_mention_me_view_api_enabled%22%3Atrue%2C%22interactive_text_enabled%22%3Atrue%2C%22responsive_web_uc_gql_enabled%22%3Afalse%2C%22responsive_web_edit_tweet_api_enabled%22%3Afalse%7D"
 
 QUOTED_VALUE = re.compile("[\"']([^\"']+)[\"']")
 MP4_PART = re.compile("/.+\.mp4|/.+m4s$")
 VIDEO_BASE = "https://video.twimg.com"
 CONTAINER_PATTERN = re.compile("['\"](http[^'\"]+&container=fmp4)")
 
-
 def send_request(url, session_method, headers):
     response = session_method(url, headers=headers, stream=True)
-    assert response.status_code == 200, f"Failed request to {url}.  {response.status_code}.  Please submit an issue including this information."
+    assert response.status_code == 200, f"Failed request to {url}.  {response.status_code} {response.json()}.  Please submit an issue including this information."
     result = [line.decode("utf-8") for line in response.iter_lines()]
     return "".join(result)
 
@@ -64,7 +63,36 @@ def download_video(video_url, file_name):
 
     assert len(video_ids) == 1, f"Did not understand your twitter URL.  Example: https://twitter.com/james_a_rob/status/1451958941886435329"
     video_id = video_ids[0]
-    status_params = f"TweetDetail?variables=%7B%22focalTweetId%22%3A%22{video_id}%22%2C%22with_rux_injections%22%3Afalse%2C%22includePromotedContent%22%3Atrue%2C%22withCommunity%22%3Atrue%2C%22withQuickPromoteEligibilityTweetFields%22%3Atrue%2C%22withBirdwatchNotes%22%3Afalse%2C%22withSuperFollowsUserFields%22%3Atrue%2C%22withDownvotePerspective%22%3Afalse%2C%22withReactionsMetadata%22%3Afalse%2C%22withReactionsPerspective%22%3Afalse%2C%22withSuperFollowsTweetFields%22%3Atrue%2C%22withVoice%22%3Atrue%2C%22withV2Timeline%22%3Atrue%7D&features=%7B%22dont_mention_me_view_api_enabled%22%3Atrue%2C%22interactive_text_enabled%22%3Atrue%2C%22responsive_web_uc_gql_enabled%22%3Afalse%2C%22responsive_web_edit_tweet_api_enabled%22%3Afalse%7D"
+
+    # serialize the `features` json to a JSON formatted string and urlencode it
+    json_features = {
+        "dont_mention_me_view_api_enabled": True,
+        "interactive_text_enabled": True,
+        "responsive_web_uc_gql_enabled": False,
+        "responsive_web_edit_tweet_api_enabled": False,
+        "vibe_tweet_context_enabled": True
+    }
+    features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
+
+    # serialize the `variables` json to a JSON formatted string and urlencode it
+    json_variables = {
+        "focalTweetId": video_id,
+        "with_rux_injections": False,
+        "includePromotedContent": True,
+        "withCommunity": True,
+        "withQuickPromoteEligibilityTweetFields": True,
+        "withBirdwatchNotes": False,
+        "withSuperFollowsUserFields": True,
+        "withDownvotePerspective": False,
+        "withReactionsMetadata": False,
+        "withReactionsPerspective": False,
+        "withSuperFollowsTweetFields": True,
+        "withVoice": True,
+        "withV2Timeline": True
+    }
+    variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
+
+    status_params = f"TweetDetail?variables={variables}&features={features}"
 
     with requests.Session() as session:
         headers = {}
