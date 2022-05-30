@@ -1,6 +1,5 @@
 import requests
 import json
-import argparse
 import re
 import urllib.parse
 
@@ -14,7 +13,14 @@ CONTAINER_PATTERN = re.compile("['\"](http[^'\"]+&container=fmp4)")
 
 def send_request(url, session_method, headers):
     response = session_method(url, headers=headers, stream=True)
-    assert response.status_code == 200, f"Failed request to {url}.  {response.status_code} {response.json()}.  Please submit an issue including this information."
+
+    response_json = ""
+    try:
+        response_json = response.json()
+    except:
+        response_json = "Failed to parse json from response."
+
+    assert response.status_code == 200, f"Failed request to {url}.  {response.status_code} {response_json}.  Please submit an issue including this information."
     result = [line.decode("utf-8") for line in response.iter_lines()]
     return "".join(result)
 
