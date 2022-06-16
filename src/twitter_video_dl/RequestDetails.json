@@ -1,0 +1,21 @@
+{
+    "variables": {
+        "withQuickPromoteEligibilityTweetFields": true,
+        "withBirdwatchNotes": false,
+        "withSuperFollowsUserFields": true,
+        "withDownvotePerspective": false,
+        "withReactionsMetadata": false,
+        "withReactionsPerspective": false,
+        "withSuperFollowsTweetFields": true,
+        "withVoice": true,
+        "withV2Timeline": true,
+        "includePromotedContent": true
+    },
+    "features": {
+        "dont_mention_me_view_api_enabled": true,
+        "interactive_text_enabled": true,
+        "responsive_web_uc_gql_enabled": false,
+        "responsive_web_edit_tweet_api_enabled": false,
+        "vibe_tweet_context_enabled": true
+    }
+}
