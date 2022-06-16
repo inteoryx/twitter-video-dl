@@ -77,7 +77,8 @@ def download_video(video_url, file_name):
         "responsive_web_uc_gql_enabled": False,
         "responsive_web_edit_tweet_api_enabled": False,
         "vibe_tweet_context_enabled": True,
-        "standardized_nudges_for_misinfo_nudges_enabled": False
+        "standardized_nudges_for_misinfo_nudges_enabled": False,
+        "responsive_web_enhance_cards_enabled": True, "standardized_nudges_misinfo": True,
     }
     features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
 
