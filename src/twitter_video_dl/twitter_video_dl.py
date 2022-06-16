@@ -2,6 +2,7 @@ import requests
 import json
 import re
 import urllib.parse
+import os
 
 GUEST_TOKEN_ENDPOINT = "https://api.twitter.com/1.1/guest/activate.json"
 STATUS_ENDPOINT = "https://twitter.com/i/api/graphql/"
@@ -10,6 +11,9 @@ QUOTED_VALUE = re.compile("[\"']([^\"']+)[\"']")
 MP4_PART = re.compile("/.+\.mp4|/.+m4s$")
 VIDEO_BASE = "https://video.twimg.com"
 CONTAINER_PATTERN = re.compile("['\"](http[^'\"]+&container=fmp4)")
+MISSING_VARIABLE_PATTERN = re.compile("Query violation: Variable '([^']+)'")
+MISSING_FEATURE_PATTERN = re.compile("The following features cannot be null: ([a-zA-Z_0-9, ]+)")
+RETRY_COUNT = 5
 
 def send_request(url, session_method, headers):
     response = session_method(url, headers=headers, stream=True)
@@ -24,6 +28,65 @@ def send_request(url, session_method, headers):
     result = [line.decode("utf-8") for line in response.iter_lines()]
     return "".join(result)
 
+
+def exploratory_request(url, method, headers, video_id):
+    # find the folder that __file__ is in
+    folder = os.path.dirname(__file__)
+    request_details_file = os.path.join(folder, "RequestDetails.json")
+
+    # load json from the file
+    with open(request_details_file, "r") as f:
+        request_details = json.load(f)
+
+    json_features = request_details["features"]
+    json_variables = request_details["variables"]
+    
+    features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
+    json_variables["focalTweetId"] = video_id
+
+    variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
+
+    status_params = f"TweetDetail?variables={variables}&features={features}"
+
+    response = method(url + status_params, headers=headers)
+    result = "".join([line.decode("utf-8") for line in response.iter_lines()])
+
+    if response.status_code == 200:
+        return result
+    
+    for _ in range(RETRY_COUNT):
+        missing_vaiables = MISSING_VARIABLE_PATTERN.findall(result)
+        missing_features = MISSING_FEATURE_PATTERN.findall(result)
+
+        if missing_features:
+            missing_features = missing_features[0].split(", ")
+
+        if missing_vaiables or missing_features:
+            for variable in missing_vaiables:
+                json_variables[variable] = True
+            
+            for feature in missing_features:
+                json_features[feature] = True
+
+            features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
+            variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
+            status_params = f"TweetDetail?variables={variables}&features={features}"
+
+            response = method(url + status_params, headers=headers)
+            result = "".join([line.decode("utf-8") for line in response.iter_lines()])
+
+            # If the second response works then it means the variables or features we added are good.
+            if response.status_code == 200:
+                # save the updated variables and features
+                with open(request_details_file, "w") as f:
+                    del json_variables["focalTweetId"]
+                    json.dump({"features": json_features, "variables": json_variables}, f, indent=4)
+
+                # It worked - no need for additional retries.
+                print(f"Success on retry {_}")
+                break
+
+    return result
 
 def search_json(j, target_key, result):
     if type(j) == dict:
@@ -70,38 +133,6 @@ def download_video(video_url, file_name):
     assert len(video_ids) == 1, f"Did not understand your twitter URL.  Example: https://twitter.com/james_a_rob/status/1451958941886435329"
     video_id = video_ids[0]
 
-    # serialize the `features` json to a JSON formatted string and urlencode it
-    json_features = {
-        "dont_mention_me_view_api_enabled": True,
-        "interactive_text_enabled": True,
-        "responsive_web_uc_gql_enabled": False,
-        "responsive_web_edit_tweet_api_enabled": False,
-        "vibe_tweet_context_enabled": True,
-        "standardized_nudges_for_misinfo_nudges_enabled": False,
-        "responsive_web_enhance_cards_enabled": True, "standardized_nudges_misinfo": True,
-    }
-    features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
-
-    # serialize the `variables` json to a JSON formatted string and urlencode it
-    json_variables = {
-        "focalTweetId": video_id,
-        "with_rux_injections": False,
-        "includePromotedContent": True,
-        "withCommunity": True,
-        "withQuickPromoteEligibilityTweetFields": True,
-        "withBirdwatchNotes": False,
-        "withSuperFollowsUserFields": True,
-        "withDownvotePerspective": False,
-        "withReactionsMetadata": False,
-        "withReactionsPerspective": False,
-        "withSuperFollowsTweetFields": True,
-        "withVoice": True,
-        "withV2Timeline": True
-    }
-    variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
-
-    status_params = f"TweetDetail?variables={variables}&features={features}"
-
     with requests.Session() as session:
         headers = {}
 
@@ -137,15 +168,15 @@ def download_video(video_url, file_name):
         assert guest_token, f"Did not find guest token.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
         headers['x-guest-token'] = guest_token
 
-        status_resp = send_request(
-            f"{STATUS_ENDPOINT}{query_id}/{status_params}", session.get, headers)
+        status_resp = exploratory_request(
+            f"{STATUS_ENDPOINT}{query_id}/", session.get, headers, video_id)
 
         status_json = json.loads(status_resp)
         
         legacies = search_json(status_json, "legacy", [])
         legacy = [l for l in legacies if "id_str" in l and l["id_str"] == video_id]
 
-        assert legacy and len(legacy) == 1, f"Did not find video.  Please confirm you are using the correct link.  If you are report this as an issue including this message.  {video_url}"
+        assert legacy and len(legacy) == 1, f"Did not find video.  Please confirm you are using the correct link.  If your link is correct please report this as an issue including this message.  {video_url}"
 
         legacy = legacy[0]
 
