@@ -12,7 +12,8 @@ MP4_PART = re.compile("/.+\.mp4|/.+m4s$")
 VIDEO_BASE = "https://video.twimg.com"
 CONTAINER_PATTERN = re.compile("['\"](http[^'\"]+&container=fmp4)")
 MISSING_VARIABLE_PATTERN = re.compile("Query violation: Variable '([^']+)'")
-MISSING_FEATURE_PATTERN = re.compile("The following features cannot be null: ([a-zA-Z_0-9]+)")
+MISSING_FEATURE_PATTERN = re.compile("The following features cannot be null: ([a-zA-Z_0-9, ]+)")
+RETRY_COUNT = 5
 
 def send_request(url, session_method, headers):
     response = session_method(url, headers=headers, stream=True)
@@ -29,7 +30,14 @@ def send_request(url, session_method, headers):
 
 
 def exploratory_request(url, method, headers, video_id):
-    request_details = json.load(open("RequestDetails.json", "r"))
+    # find the folder that __file__ is in
+    folder = os.path.dirname(__file__)
+    request_details_file = os.path.join(folder, "RequestDetails.json")
+
+    # load json from the file
+    with open(request_details_file, "r") as f:
+        request_details = json.load(f)
+
     json_features = request_details["features"]
     json_variables = request_details["variables"]
     
@@ -46,28 +54,37 @@ def exploratory_request(url, method, headers, video_id):
     if response.status_code == 200:
         return result
     
-    missing_vaiables = MISSING_VARIABLE_PATTERN.findall(result)
-    missing_features = MISSING_FEATURE_PATTERN.findall(result)
+    for _ in range(RETRY_COUNT):
+        missing_vaiables = MISSING_VARIABLE_PATTERN.findall(result)
+        missing_features = MISSING_FEATURE_PATTERN.findall(result)
 
-    if missing_vaiables or missing_features:
-        for variable in missing_vaiables:
-            json_variables[variable] = True
-        
-        for feature in missing_features:
-            json_features[feature] = True
+        if missing_features:
+            missing_features = missing_features[0].split(", ")
 
-        features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
-        variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
-        status_params = f"TweetDetail?variables={variables}&features={features}"
+        if missing_vaiables or missing_features:
+            for variable in missing_vaiables:
+                json_variables[variable] = True
+            
+            for feature in missing_features:
+                json_features[feature] = True
 
-        second_response = method(url + status_params, headers=headers)
+            features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
+            variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
+            status_params = f"TweetDetail?variables={variables}&features={features}"
 
-        # If the second response works then it means the variables or features we added are good.
-        if second_response.status_code == 200:
-            result = "".join([line.decode("utf-8") for line in second_response.iter_lines()])
+            response = method(url + status_params, headers=headers)
+            result = "".join([line.decode("utf-8") for line in response.iter_lines()])
 
-            # save the updated variables and features
-            print("We should save here.")
+            # If the second response works then it means the variables or features we added are good.
+            if response.status_code == 200:
+                # save the updated variables and features
+                with open(request_details_file, "w") as f:
+                    del json_variables["focalTweetId"]
+                    json.dump({"features": json_features, "variables": json_variables}, f, indent=4)
+
+                # It worked - no need for additional retries.
+                print(f"Success on retry {_}")
+                break
 
     return result
 
@@ -159,7 +176,7 @@ def download_video(video_url, file_name):
         legacies = search_json(status_json, "legacy", [])
         legacy = [l for l in legacies if "id_str" in l and l["id_str"] == video_id]
 
-        assert legacy and len(legacy) == 1, f"Did not find video.  Please confirm you are using the correct link.  If you are report this as an issue including this message.  {video_url}"
+        assert legacy and len(legacy) == 1, f"Did not find video.  Please confirm you are using the correct link.  If your link is correct please report this as an issue including this message.  {video_url}"
 
         legacy = legacy[0]
 
