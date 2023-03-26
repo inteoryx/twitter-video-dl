@@ -162,8 +162,6 @@ def extract_mp4s(j):
             if my_dims[0] * my_dims[1] > their_dims[0] * their_dims[1]:
                 results[tweet_id] = {'resolution': resolution, 'url': url}
 
-
-
     return [x['url'] for x in results.values()]
 
 
@@ -226,14 +224,19 @@ def download_video(tweet_url, output_file):
 
     mp4s = extract_mp4s(resp.text)
 
-    for mp4 in mp4s:
-        if "container" in mp4:
-            download_parts(mp4, output_file)
-        else:
-            # use a stream to download the file
-            r = requests.get(mp4, stream=True)
-            with open(output_file, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=1024):
-                    if chunk:
-                        f.write(chunk)
-                        f.flush()
+    # sometimes there will be multiple mp4s extracted.  This happens when a twitter thread has multiple videos.  What should we do?  Could get all of them, or just the first one.  I think the first one in the list is the one that the user requested... I think that's always true.  We'll just do that and change it if someone complains.
+    #names = [output_file.replace('.mp4', f'_{i}.mp4') for i in range(len(mp4s))]
+
+    assert len(mp4s) > 0, f'Could not find any mp4s to download.  Make sure you are using the correct url.  If you are, then file a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}'
+
+    mp4 = mp4s[0]
+    if "container" in mp4:
+        download_parts(mp4, output_file)
+    else:
+        # use a stream to download the file
+        r = requests.get(mp4, stream=True)
+        with open(output_file, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+                    f.flush()
