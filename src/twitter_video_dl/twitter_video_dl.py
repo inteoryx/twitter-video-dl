@@ -4,230 +4,227 @@ import re
 import urllib.parse
 import os
 
-GUEST_TOKEN_ENDPOINT = "https://api.twitter.com/1.1/guest/activate.json"
-STATUS_ENDPOINT = "https://twitter.com/i/api/graphql/"
 
-QUOTED_VALUE = re.compile("[\"']([^\"']+)[\"']")
-MP4_PART = re.compile("/.+\.mp4|/.+m4s$")
-VIDEO_BASE = "https://video.twimg.com"
-CONTAINER_PATTERN = re.compile("['\"](http[^'\"]+&container=fmp4)")
-MISSING_VARIABLE_PATTERN = re.compile("Query violation: Variable '([^']+)'")
-MISSING_FEATURE_PATTERN = re.compile("The following features cannot be null: ([a-zA-Z_0-9, ]+)")
-RETRY_COUNT = 5
+"""
 
-def send_request(url, session_method, headers):
-    response = session_method(url, headers=headers, stream=True)
+Hey, thanks for reading the comments.  I love you.
 
-    response_json = ""
-    try:
-        response_json = response.json()
-    except:
-        response_json = "Failed to parse json from response."
+Here's how this works:
+1. To download a video you need a Bearer Token and a guest token.  The guest token definitely expires and the Bearer Token could, though in practice I don't think it does.
+2. Use the video id get both of those as if you were an unauthenticated browser.
+3. Call "TweetDetails" graphql endpoint with your tokens.
+4. TweetDetails response includes a 'variants' key which is a list of video urls and details.  Find the one with the highest bitrate (bigger is better, right?) and then just download that.
+5. If it's broken, fix it yourself because I'm very slow.  Or, hey, let me know, but I might not reply for months.
 
-    assert response.status_code == 200, f"Failed request to {url}.  {response.status_code} {response_json}.  Please submit an issue including this information."
-    result = [line.decode("utf-8") for line in response.iter_lines()]
-    return "".join(result)
+"""
+
+variables = {
+    "with_rux_injections":False,
+    "includePromotedContent":True,
+    "withCommunity":True,
+    "withQuickPromoteEligibilityTweetFields":True,
+    "withBirdwatchNotes":True,
+    "withDownvotePerspective":False,
+    "withReactionsMetadata":False,
+    "withReactionsPerspective":False,
+    "withVoice":True,
+    "withV2Timeline":True
+}
+
+features={
+    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "responsive_web_graphql_exclude_directive_enabled":True,
+    "verified_phone_label_enabled":False,
+    "responsive_web_graphql_timeline_navigation_enabled":True,
+    "responsive_web_graphql_skip_user_profile_image_extensions_enabled":False,
+    "tweetypie_unmention_optimization_enabled": True,    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "vibe_api_enabled": False,    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "responsive_web_edit_tweet_api_enabled": False,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "graphql_is_translatable_rweb_tweet_is_translatable_enabled": False,    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "view_counts_everywhere_api_enabled": True,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "longform_notetweets_consumption_enabled":True,
+    "tweet_awards_web_tipping_enabled":False,
+    "freedom_of_speech_not_reach_fetch_enabled":False,
+    "standardized_nudges_misinfo": False,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":False,
+    "interactive_text_enabled": False,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
+    "responsive_web_text_conversations_enabled":False,
+    "longform_notetweets_richtext_consumption_enabled":False,
+    "responsive_web_enhance_cards_enabled":False
+}
 
 
-def exploratory_request(url, method, headers, video_id):
-    # find the folder that __file__ is in
-    folder = os.path.dirname(__file__)
-    request_details_file = os.path.join(folder, "RequestDetails.json")
 
-    # load json from the file
-    with open(request_details_file, "r") as f:
-        request_details = json.load(f)
+def get_tokens(tweet_url):
+    """
+    Welcome to the world of getting a bearer token and guest id.
 
-    json_features = request_details["features"]
-    json_variables = request_details["variables"]
+    1. If you request the twitter url for the tweet you'll get back a blank 'tweet not found' page.  In the browser, subsequent javascript calls will populate this page with data.  The blank page includes a script tag for a 'main.js' file that contains the bearer token.
+    2. 'main.js' has a random string of numbers and letters in the filename.  We will request the tweet url, use a regex to find our unique main.js file, and then request that main.js file.
+    3. The main.js file contains a bearer token.  We will extract that token and return it.  We can find the token by looking for a lot of A characters in a row.
+    4. Now that we have the bearer token, how do we get the guest id?  Easy, we already have it.  Guest token, or 'gt' if you're a Twitter dev, is set as a response header from the original request to the tweet url.  We can just grab it from the response headers and return it.
+    """
     
-    features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
-    json_variables["focalTweetId"] = video_id
+    html = requests.get(tweet_url)
 
-    variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
+    assert html.status_code == 200, f'Failed to get tweet page.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {html.status_code}.  Tweet url: {tweet_url}'
 
-    status_params = f"TweetDetail?variables={variables}&features={features}"
+    mainjs_url = re.findall(r'https://abs.twimg.com/responsive-web/client-web-legacy/main.[^\.]+.js', html.text)
 
-    response = method(url + status_params, headers=headers)
-    result = "".join([line.decode("utf-8") for line in response.iter_lines()])
-
-    if response.status_code == 200:
-        return result
+    assert mainjs_url is not None and len(mainjs_url) > 0, f'Failed to find main.js file.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}'
     
-    for _ in range(RETRY_COUNT):
-        missing_vaiables = MISSING_VARIABLE_PATTERN.findall(result)
-        missing_features = MISSING_FEATURE_PATTERN.findall(result)
+    mainjs_url = mainjs_url[0]
 
-        if missing_features:
-            missing_features = missing_features[0].split(", ")
+    mainjs = requests.get(mainjs_url)
 
-        if missing_vaiables or missing_features:
-            for variable in missing_vaiables:
-                json_variables[variable] = True
-            
-            for feature in missing_features:
-                json_features[feature] = True
+    assert mainjs.status_code == 200, f'Failed to get main.js file.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {mainjs.status_code}.  Tweet url: {tweet_url}'
 
-            features = urllib.parse.quote_plus(json.dumps(json_features, separators=(',', ':')))
-            variables = urllib.parse.quote_plus(json.dumps(json_variables, separators=(',', ':')))
-            status_params = f"TweetDetail?variables={variables}&features={features}"
+    bearer_token = re.findall(r'AAAAAAAAA[^"]+', mainjs.text)
 
-            response = method(url + status_params, headers=headers)
-            result = "".join([line.decode("utf-8") for line in response.iter_lines()])
+    assert bearer_token is not None and len(bearer_token) > 0, f'Failed to find bearer token.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}, main.js url: {mainjs_url}'
 
-            # If the second response works then it means the variables or features we added are good.
-            if response.status_code == 200:
-                # save the updated variables and features
-                with open(request_details_file, "w") as f:
-                    del json_variables["focalTweetId"]
-                    json.dump({"features": json_features, "variables": json_variables}, f, indent=4)
+    bearer_token = bearer_token[0]
 
-                # It worked - no need for additional retries.
-                print(f"Success on retry {_}")
-                break
+    guest_token = html.cookies['gt']
 
-    return result
+    assert guest_token is not None, f'Failed to find guest token.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}, main.js url: {mainjs_url}'
 
-def search_json(j, target_key, result):
-    if type(j) == dict:
-        for key, value in j.items():
-            if key == target_key:
-                if type(value) == list:
-                    result.extend(value)
-                else:
-                    result.append(value)
-            search_json(value, target_key, result)
-
-    if type(j) == list:
-        for item in j:
-            search_json(item, target_key, result)
-
-    return result
+    return bearer_token, guest_token
 
 
-def merge_files(f1, f2):
-    for line in f2:
-        f1.write(line)
-
-    return f1
-
-
-def download_video_parts(parts, fname):
-    with open(fname, "wb") as video_file:
-        paths = []
-        for part in parts:
-            paths.extend(MP4_PART.findall(part))
-
-        for path in paths:
-            full_path = f"{VIDEO_BASE}{path}"
-            resp = requests.get(full_path, stream=True)
-            assert resp.status_code == 200, f"Failed requesting {full_path}.  Please try again or report this as an issue. {resp}"
-            merge_files(video_file, resp.raw)
+def get_details_url(tweet_id, features, variables):
+    # create a copy of variables - we don't want to modify the original
+    variables = {**variables}
+    variables['focalTweetId'] = tweet_id
+    
+    return f"https://twitter.com/i/api/graphql/wTXkouwCKcMNQtY-NcDgAA/TweetDetail?variables={urllib.parse.quote(json.dumps(variables))}&features={urllib.parse.quote(json.dumps(features))}"
 
 
-def download_video(video_url, file_name):
-    # if file_name ends in .mp4 leave it alone otherwise add .mp4
+def get_tweet_details(tweet_url, guest_token, bearer_token):
+    tweet_id = re.findall(r'(?<=status/)\d+', tweet_url)
 
-    video_ids = re.findall("status/([0-9]+)", video_url)
+    assert tweet_id is not None and len(tweet_id) == 1, f'Could not parse tweet id from your url.  Make sure you are using the correct url.  If you are, then file a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}'
 
-    assert len(video_ids) == 1, f"Did not understand your twitter URL.  Example: https://twitter.com/james_a_rob/status/1451958941886435329"
-    video_id = video_ids[0]
+    tweet_id = tweet_id[0]
 
-    with requests.Session() as session:
-        headers = {}
 
-        # One of the js files from original url holds the bearer token and query id.
-        container = send_request(video_url, session.get, headers)
-        js_files = re.findall("src=['\"]([^'\"()]*js)['\"]", container)
+    # the url needs a url encoded version of variables and features as a query string
+    url = get_details_url(tweet_id, features, variables)
 
-        bearer_token = None
-        query_id = None
-        # Search the javascript files for a bearer token and TweetDetail queryId
-        for f in js_files:
-            file_content = send_request(f, session.get, headers)
-            bt = re.search(
-                '["\'](AAA[a-zA-Z0-9%-]+%[a-zA-Z0-9%-]+)["\']', file_content)
+    details = requests.get(url, headers={
+        'authorization': f'Bearer {bearer_token}',
+        'x-guest-token': guest_token,
+    })
+    
+    return details
 
-            ops = re.findall('\{queryId:"[a-zA-Z0-9_]+[^\}]+"', file_content)
-            query_op = [op for op in ops if "TweetDetail" in op]
 
-            if len(query_op) == 1:
-                query_id = re.findall('queryId:"([^"]+)"', query_op[0])[0]
+def extract_mp4s(j):
+    # pattern looks like https://video.twimg.com/amplify_video/1638969830442237953/vid/1080x1920/lXSFa54mAVp7KHim.mp4?tag=16 or https://video.twimg.com/ext_tw_video/1451958820348080133/pu/vid/720x1280/GddnMJ7KszCQQFvA.mp4?tag=12
+    amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(\d+x\d+)/\w+.mp4\?tag=\d+)')
+    ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(\d+x\d+)/\w+.mp4\?tag=\d+)')
 
-            if bt:
-                bearer_token = bt.group(1)
+    # https://video.twimg.com/ext_tw_video/1451958820348080133/pu/pl/b-CiC-gZClIwXgDz.m3u8?tag=12&container=fmp4
+    container_pattern = re.compile(r'https://video.twimg.com/[^"]*container=fmp4')
+    
 
-        assert bearer_token, f"Did not find bearer token.  Are you sure you used the right URL? {video_url}"
-        assert query_id, f"Did not find query id.  Are you sure you used the right twitter URL? {video_url}"
+    # find all the matches
+    matches = amplitude_pattern.findall(j)
+    matches += ext_tw_pattern.findall(j)
 
-        headers['authorization'] = f"Bearer {bearer_token}"
+    container_matches = container_pattern.findall(j)
+    if len(container_matches) > 0:
+        return container_matches
 
-        guest_token_resp = send_request(
-            GUEST_TOKEN_ENDPOINT, session.post, headers)
-        guest_token = json.loads(guest_token_resp)['guest_token']
-        assert guest_token, f"Did not find guest token.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
-        headers['x-guest-token'] = guest_token
+    results = {}
 
-        status_resp = exploratory_request(
-            f"{STATUS_ENDPOINT}{query_id}/", session.get, headers, video_id)
-
-        status_json = json.loads(status_resp)
-        
-        legacies = search_json(status_json, "legacy", [])
-        legacy = [l for l in legacies if "id_str" in l and l["id_str"] == video_id]
-
-        assert legacy and len(legacy) == 1, f"Did not find video.  Please confirm you are using the correct link.  If your link is correct please report this as an issue including this message.  {video_url}"
-
-        legacy = legacy[0]
-
-        variants = search_json(legacy, "variants", [])
-        variants = [v for v in variants if 'bitrate' in v]
-
-        if variants:
-            # Find the highest bitrate variant
-            variants.sort(key=lambda x: x['bitrate'], reverse=True)
-            variant = variants[0]
-
-            video_data = requests.get(variant["url"]).content
-
-            with open(file_name, "wb") as f:
-                f.write(video_data)
+    for match in matches:
+        url, tweet_id, resolution = match
+        if tweet_id not in results:
+            results[tweet_id] = {'resolution': resolution, 'url': url}
         else:
-            # Some tweets have a "legacy" format that this handles
-            container_urls = CONTAINER_PATTERN.findall(status_resp)
-            video_containers = []
+            # if we already have a higher resolution video, then don't overwrite it
+            my_dims = [int(x) for x in resolution.split('x')]
+            their_dims = [int(x) for x in results[tweet_id]['resolution'].split('x')]
 
-            for container in container_urls:
-                video_details = send_request(container, session.get, headers)
-                video_suffixes = re.findall(
-                    "(/[a-zA-Z0-9_?\/\.]*=fmp4)", video_details)
+            if my_dims[0] * my_dims[1] > their_dims[0] * their_dims[1]:
+                results[tweet_id] = {'resolution': resolution, 'url': url}
 
-                resolutions = []
-                for vs in video_suffixes:
-                    resolution = re.findall("([0-9]+)x([0-9]+)", vs)[0]
-                    resolutions.append((vs, int(resolution[0]) * int(resolution[1])))
-                    resolutions.sort(key=lambda x: x[1])
 
-                if len(resolutions) > 0:
-                    video_containers.append(resolutions[-1])
 
-            video_containers = set(video_containers)
-            assert video_containers, f"Did not find video container.  Probably means the script is broken.  Please submit an issue.  Include this message in your issue: {video_url}"
+    return [x['url'] for x in results.values()]
 
-            if len(video_containers) == 1:
-                vc = video_containers.pop()
-                parts = send_request(f"{VIDEO_BASE}{vc[0]}", session.get, headers).split("#")
 
-                download_video_parts(
-                    parts,
-                    file_name
-                )
-            else:   
+def download_parts(url, output_filename):
+    resp = requests.get(url, stream=True)
+    
+    # container begins with / ends with fmp4 and has a resolution in it we want to capture
+    pattern = re.compile(r'(/[^\n]*/(\d+x\d+)/[^\n]*container=fmp4)')
 
-                for i, vc in enumerate(video_containers):
-                    parts = send_request(f"{VIDEO_BASE}{vc[0]}", session.get, headers).split("#")
+    matches = pattern.findall(resp.text)
 
-                    download_video_parts(
-                        parts,
-                        f"{i}-{file_name}"
-                    )
+    max_res = 0
+    max_res_url = None
+
+    for match in matches:
+        url, resolution = match
+        width, height = resolution.split('x')
+        res = int(width) * int(height)
+        if res > max_res:
+            max_res = res
+            max_res_url = url
+
+    assert max_res_url is not None, f'Could not find a url to download from.  Make sure you are using the correct url.  If you are, then file a GitHub issue and copy and paste this message.  Tweet url: {url}'
+
+    video_part_prefix = "https://video.twimg.com"
+
+    resp = requests.get(video_part_prefix + max_res_url, stream=True)
+
+    mp4_pattern = re.compile(r'(/[^\n]*\.mp4)')
+    mp4_parts = mp4_pattern.findall(resp.text)
+
+    assert len(mp4_parts) == 1, f'There should be exactly 1 mp4 container at this point.  Instead, found {len(mp4_parts)}.  Please open a GitHub issue and copy and paste this message into it.  Tweet url: {url}'
+
+    mp4_url = video_part_prefix + mp4_parts[0]
+
+    m4s_part_pattern = re.compile(r'(/[^\n]*\.m4s)')
+    m4s_parts = m4s_part_pattern.findall(resp.text)
+
+    with open(output_filename, 'wb') as f:
+        r = requests.get(mp4_url, stream=True)
+        for chunk in r.iter_content(chunk_size=1024):
+            if chunk:
+                f.write(chunk)
+                f.flush()
+
+        for part in m4s_parts:
+            part_url = video_part_prefix + part
+            r = requests.get(part_url, stream=True)
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+                    f.flush()
+
+    return True
+
+
+def download_video(tweet_url, output_file):
+    bearer_token, guest_token = get_tokens(tweet_url)
+    resp = get_tweet_details(tweet_url, guest_token, bearer_token)
+
+    mp4s = extract_mp4s(resp.text)
+
+    for mp4 in mp4s:
+        if "container" in mp4:
+            download_parts(mp4, output_file)
+        else:
+            # use a stream to download the file
+            r = requests.get(mp4, stream=True)
+            with open(output_file, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+                        f.flush()
+
+
+download_video("https://twitter.com/GOTGTheGame/status/1451361961782906889", "test.mp4")

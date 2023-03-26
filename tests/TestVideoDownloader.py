@@ -25,6 +25,7 @@ class VideoDLTester(unittest.TestCase):
             videos_j = json.load(f)
 
         for video in videos_j["videos"]:
+            print("Testing: ", video["url"])
             tvdl.download_video(video["url"], "test.mp4")
 
             # Probe the video to confirm we have downloaded it.
@@ -40,6 +41,7 @@ class VideoDLTester(unittest.TestCase):
             self.assertAlmostEqual(actual_size, expected_size, delta=(self.TOLERANCE * expected_size))
 
             os.remove("test.mp4")
+            print("Passed: ", video["url"])
 
 if __name__ == "__main__":
     unittest.main()
