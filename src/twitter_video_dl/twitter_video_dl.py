@@ -19,8 +19,10 @@ Here's how this works:
 
 """
 
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
-request_details = json.load(open(f'{script_dir}{os.sep}RequestDetails.json', 'r'))
+request_details_file = f'{script_dir}{os.sep}RequestDetails.json'
+request_details = json.load(open(request_details_file, 'r'))
 
 features, variables = request_details['features'], request_details['variables']
 
@@ -76,7 +78,6 @@ def get_tweet_details(tweet_url, guest_token, bearer_token):
 
     tweet_id = tweet_id[0]
 
-
     # the url needs a url encoded version of variables and features as a query string
     url = get_details_url(tweet_id, features, variables)
 
@@ -84,6 +85,48 @@ def get_tweet_details(tweet_url, guest_token, bearer_token):
         'authorization': f'Bearer {bearer_token}',
         'x-guest-token': guest_token,
     })
+
+    max_retries = 10
+    cur_retry = 0
+    while details.status_code == 400 and cur_retry < max_retries:
+        try:
+            error_json = json.loads(details.text)
+        except:
+            assert False, f'Failed to parse json from details error. details text: {details.text}  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {details.status_code}.  Tweet url: {tweet_url}'
+
+        assert "errors" in error_json, f'Failed to find errors in details error json.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {details.status_code}.  Tweet url: {tweet_url}'
+
+        needed_variable_pattern = re.compile(r"Variable '([^']+)'")
+        needed_features_pattern = re.compile(r'The following features cannot be null: ([^"]+)')
+
+        for error in error_json["errors"]:
+            needed_vars = needed_variable_pattern.findall(error["message"])
+            for needed_var in needed_vars:
+                variables[needed_var] = True
+
+            needed_features = needed_features_pattern.findall(error["message"])
+            for nf in needed_features:
+                for feature in nf.split(','):
+                    features[feature.strip()] = True
+
+        url = get_details_url(tweet_id, features, variables)
+
+        details = requests.get(url, headers={
+            'authorization': f'Bearer {bearer_token}',
+            'x-guest-token': guest_token,
+        })
+
+        cur_retry += 1
+
+        if details.status_code == 200:
+            # save new variables
+            request_details['variables'] = variables
+            request_details['features'] = features
+
+            with open(request_details_file, 'w') as f:
+                json.dump(request_details, f, indent=4)
+
+    assert details.status_code == 200, f'Failed to get tweet details.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {details.status_code}.  Tweet url: {tweet_url}'
     
     return details
 
