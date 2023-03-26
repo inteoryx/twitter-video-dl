@@ -14,46 +14,15 @@ Here's how this works:
 2. Use the video id get both of those as if you were an unauthenticated browser.
 3. Call "TweetDetails" graphql endpoint with your tokens.
 4. TweetDetails response includes a 'variants' key which is a list of video urls and details.  Find the one with the highest bitrate (bigger is better, right?) and then just download that.
+5. Some videos are small.  They are contained in a single mp4 file.  Other videos are big.  They have an mp4 file that's a "container" and then a bunch of m4s files.  Once we know the name of the video file we are looking for we can look up what the m4s files are, download all of them, and then put them all together into one big file.  This currently all happens in memory.  I would guess that a very huge video might cause an out of memory error.  I don't know, I haven't tried it.
 5. If it's broken, fix it yourself because I'm very slow.  Or, hey, let me know, but I might not reply for months.
 
 """
 
-variables = {
-    "with_rux_injections":False,
-    "includePromotedContent":True,
-    "withCommunity":True,
-    "withQuickPromoteEligibilityTweetFields":True,
-    "withBirdwatchNotes":True,
-    "withDownvotePerspective":False,
-    "withReactionsMetadata":False,
-    "withReactionsPerspective":False,
-    "withVoice":True,
-    "withV2Timeline":True
-}
+script_dir = os.path.dirname(os.path.realpath(__file__))
+request_details = json.load(open(f'{script_dir}{os.sep}RequestDetails.json', 'r'))
 
-features={
-    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "responsive_web_graphql_exclude_directive_enabled":True,
-    "verified_phone_label_enabled":False,
-    "responsive_web_graphql_timeline_navigation_enabled":True,
-    "responsive_web_graphql_skip_user_profile_image_extensions_enabled":False,
-    "tweetypie_unmention_optimization_enabled": True,    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "vibe_api_enabled": False,    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "responsive_web_edit_tweet_api_enabled": False,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "graphql_is_translatable_rweb_tweet_is_translatable_enabled": False,    "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "view_counts_everywhere_api_enabled": True,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "longform_notetweets_consumption_enabled":True,
-    "tweet_awards_web_tipping_enabled":False,
-    "freedom_of_speech_not_reach_fetch_enabled":False,
-    "standardized_nudges_misinfo": False,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":False,
-    "interactive_text_enabled": False,   "responsive_web_twitter_blue_verified_badge_is_enabled":True,
-    "responsive_web_text_conversations_enabled":False,
-    "longform_notetweets_richtext_consumption_enabled":False,
-    "responsive_web_enhance_cards_enabled":False
-}
-
-
+features, variables = request_details['features'], request_details['variables']
 
 def get_tokens(tweet_url):
     """
@@ -225,6 +194,3 @@ def download_video(tweet_url, output_file):
                     if chunk:
                         f.write(chunk)
                         f.flush()
-
-
-download_video("https://twitter.com/GOTGTheGame/status/1451361961782906889", "test.mp4")

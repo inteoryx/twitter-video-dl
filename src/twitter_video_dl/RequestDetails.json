@@ -1,21 +1,34 @@
 {
-    "features": {
-        "dont_mention_me_view_api_enabled": true,
-        "interactive_text_enabled": true,
-        "responsive_web_uc_gql_enabled": false,
-        "vibe_tweet_context_enabled": true,
-        "standardized_nudges_misinfo": true,
-        "responsive_web_edit_tweet_api_enabled": true,
-        "responsive_web_enhance_cards_enabled": true
+    "features":{
+        "responsive_web_graphql_exclude_directive_enabled":true,
+        "verified_phone_label_enabled":false,
+        "responsive_web_graphql_timeline_navigation_enabled":true,
+        "responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,
+        "tweetypie_unmention_optimization_enabled": true,    
+        "vibe_api_enabled": false,
+        "responsive_web_edit_tweet_api_enabled": false,   
+        "graphql_is_translatable_rweb_tweet_is_translatable_enabled": false,
+        "view_counts_everywhere_api_enabled": true,
+        "longform_notetweets_consumption_enabled":true,
+        "tweet_awards_web_tipping_enabled":false,
+        "freedom_of_speech_not_reach_fetch_enabled":false,
+        "standardized_nudges_misinfo": false,
+        "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":false,
+        "interactive_text_enabled": false,   "responsive_web_twitter_blue_verified_badge_is_enabled":true,
+        "responsive_web_text_conversations_enabled":false,
+        "longform_notetweets_richtext_consumption_enabled":false,
+        "responsive_web_enhance_cards_enabled":false
     },
     "variables": {
-        "withBirdwatchNotes": false,
-        "withSuperFollowsUserFields": true,
-        "withDownvotePerspective": false,
-        "withReactionsMetadata": false,
-        "includePromotedContent": true,
-        "withReactionsPerspective": true,
-        "withSuperFollowsTweetFields": true,
-        "withVoice": true
+        "with_rux_injections":false,
+        "includePromotedContent":true,
+        "withCommunity":true,
+        "withQuickPromoteEligibilityTweetFields":true,
+        "withBirdwatchNotes":true,
+        "withDownvotePerspective":false,
+        "withReactionsMetadata":false,
+        "withReactionsPerspective":false,
+        "withVoice":true,
+        "withV2Timeline":true
     }
 }
