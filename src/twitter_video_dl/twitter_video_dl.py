@@ -129,7 +129,7 @@ def get_tweet_details(tweet_url, guest_token, bearer_token):
     return details
 
 def get_tweet_status_id(tweet_url) :
-    sid_patern = r'https://twitter\.com/[^/]+/status/(\d+)/'
+    sid_patern = r'https://twitter\.com/[^/]+/status/(\d+)'
     if tweet_url[len(tweet_url)-1] != "/" :
         tweet_url = tweet_url + "/"
 
