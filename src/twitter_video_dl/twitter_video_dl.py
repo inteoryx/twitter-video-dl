@@ -204,6 +204,37 @@ def extract_mp4s(j, tweet_url, target_all_mp4s = False):
 
     return [x['url'] for x in results.values()]
 
+def extract_mp4_fmp4(j):
+    """
+    Extract the URL of the MP4 video from the detailed information of the tweet.
+    Returns a list of URLs, tweet IDs, and resolution information (dictionary type) 
+    and a list of tweet IDs as return values.
+    """
+    # pattern looks like https://video.twimg.com/amplify_video/1638969830442237953/vid/1080x1920/lXSFa54mAVp7KHim.mp4?tag=16 or https://video.twimg.com/ext_tw_video/1451958820348080133/pu/vid/720x1280/GddnMJ7KszCQQFvA.mp4?tag=12
+    amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
+    ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
+
+    # https://video.twimg.com/ext_tw_video/1451958820348080133/pu/pl/b-CiC-gZClIwXgDz.m3u8?tag=12&container=fmp4
+    container_pattern = re.compile(r'https://video.twimg.com/[^"]*container=fmp4')
+    
+    # find all the matches
+    matches = amplitude_pattern.findall(j)
+    matches += ext_tw_pattern.findall(j)
+    container_matches = container_pattern.findall(j)
+    tweet_id_list = []
+    results = []
+
+    for match in matches:
+        url, tweet_id, resolution = match
+        tweet_id_list.append(int(tweet_id))
+        results.append({'resolution': resolution, 'url': url})
+
+    tweet_id_list = list(dict.fromkeys(tweet_id_list))
+
+    if len(container_matches) > 0:
+        for url in container_matches:
+            results.append({'url': url})
+    return tweet_id_list, results
 
 def download_parts(url, output_filename):
     resp = requests.get(url, stream=True)
@@ -368,3 +399,56 @@ def download_video(tweet_url, output_file, target_all_videos=False) :
                         if chunk:
                             f.write(chunk)
                             f.flush()
+
+def download_video_for_cs(tweet_url, output_file='') :
+    """
+    In cases where multiple videos are posted in a single tweet, each video will be saved.
+
+    In the case of videos posted in a threaded tweet, all videos posted in the thread will be saved.
+    However, there are cases where videos cannot be saved depending on the content of the video or 
+    the settings at the time of posting. 
+    This is because the MP4 file information is not saved versus the URL.
+    """
+    bearer_token, guest_token = get_tokens(tweet_url)
+    resp = get_tweet_details(tweet_url, guest_token, bearer_token)
+    mp4_ids, mp4s = extract_mp4_fmp4(resp.text)
+
+    output_file_name = ''
+    max_resolution_url_list = []
+    num = 0
+    
+    for mp4_id in mp4_ids:
+        max_resolution = 0
+        max_resolution_url = ''
+        for mp4 in mp4s:
+            if 'resolution' in mp4 and str(mp4_id) in mp4['url']:
+                resolution = mp4['resolution']
+                width, height = resolution.split('x')
+                if int(width) * int(height) > max_resolution:
+                    max_resolution = int(width) * int(height)
+                    max_resolution_url = mp4['url']
+        if max_resolution_url:
+            max_resolution_url_list.append(max_resolution_url)
+
+    num = len(max_resolution_url_list)
+
+    for index, max_resolution_url in enumerate(max_resolution_url_list):
+        response = requests.get(max_resolution_url)
+        if response.status_code == 200:
+            if not os.path.exists('output'):
+                os.makedirs('output')
+            mp4_id = max_resolution_url.split('/ext_tw_video/')[-1].split('/')[0]
+            resolution = max_resolution_url.split('/vid/')[-1].split('/')[0]
+            if output_file == "":
+                if num > 1:
+                    output_file_name = f'{mp4_id}_{resolution}_{index+1}'
+                else:
+                    output_file_name = f'{mp4_id}_{resolution}'
+            else:
+                if num > 1:
+                    output_file_name = f'{output_file}_{index+1}'
+                else:
+                    output_file_name = f'{output_file}'
+            with open(f'output/{output_file_name}.mp4', 'wb') as f:
+                f.write(response.content)
+            print(f'Video Output Success: output/{output_file_name}.mp4')
