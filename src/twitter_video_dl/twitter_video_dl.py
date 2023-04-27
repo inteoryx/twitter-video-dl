@@ -55,20 +55,20 @@ def get_tokens(tweet_url):
     bearer_token = bearer_token[0]
     
     # get the guest token
-    s = requests.Session()
+    with requests.Session() as s:
  
-    s.headers.update({
-        "user-agent"	:	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0",
-        "accept"	:	"*/*",
-        "accept-language"	:	"de,en-US;q=0.7,en;q=0.3",
-        "accept-encoding"	:	"gzip, deflate, br",
-        "te"	:	"trailers",})
-        
-    s.headers.update({"authorization"	:	f"Bearer {bearer_token}"})
+        s.headers.update({
+            "user-agent"	:	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0",
+            "accept"	:	"*/*",
+            "accept-language"	:	"de,en-US;q=0.7,en;q=0.3",
+            "accept-encoding"	:	"gzip, deflate, br",
+            "te"	:	"trailers",})
+            
+        s.headers.update({"authorization"	:	f"Bearer {bearer_token}"})
 
-    # activate bearer token and get guest token
-    guest_token = s.post(
-        "https://api.twitter.com/1.1/guest/activate.json").json()["guest_token"]
+        # activate bearer token and get guest token
+        guest_token = s.post(
+            "https://api.twitter.com/1.1/guest/activate.json").json()["guest_token"]
 
 
     assert guest_token is not None, f'Failed to find guest token.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}, main.js url: {mainjs_url}'
