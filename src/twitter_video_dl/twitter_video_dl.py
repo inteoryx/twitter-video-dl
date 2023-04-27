@@ -53,7 +53,13 @@ def get_tokens(tweet_url):
 
     bearer_token = bearer_token[0]
 
-    guest_token = html.cookies['gt']
+    headers = {
+        'authorization': f'Bearer {bearer_token}',
+    }
+
+    response = requests.post('https://api.twitter.com/1.1/guest/activate.json', headers=headers)
+
+    guest_token = response.json()["guest_token"]
 
     assert guest_token is not None, f'Failed to find guest token.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}, main.js url: {mainjs_url}'
 
