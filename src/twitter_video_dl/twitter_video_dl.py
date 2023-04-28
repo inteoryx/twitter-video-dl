@@ -28,9 +28,10 @@ def get_tokens(tweet_url):
     1. If you request the twitter url for the tweet you'll get back a blank 'tweet not found' page.  In the browser, subsequent javascript calls will populate this page with data.  The blank page includes a script tag for a 'main.js' file that contains the bearer token.
     2. 'main.js' has a random string of numbers and letters in the filename.  We will request the tweet url, use a regex to find our unique main.js file, and then request that main.js file.
     3. The main.js file contains a bearer token.  We will extract that token and return it.  We can find the token by looking for a lot of A characters in a row.
-    4. Now that we have the bearer token, how do we get the guest id?  Easy, we already have it.  Guest token, or 'gt' if you're a Twitter dev, is set as a response header from the original request to the tweet url.  We can just grab it from the response headers and return it.
+    4. Now that we have the bearer token, how do we get the guest id?  Easy, we activate the bearer token to get it.
     """
 
+    
     html = requests.get(tweet_url)
 
     assert html.status_code == 200, f'Failed to get tweet page.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {html.status_code}.  Tweet url: {tweet_url}'
@@ -52,14 +53,23 @@ def get_tokens(tweet_url):
         bearer_token) > 0, f'Failed to find bearer token.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}, main.js url: {mainjs_url}'
 
     bearer_token = bearer_token[0]
+    
+    # get the guest token
+    with requests.Session() as s:
+ 
+        s.headers.update({
+            "user-agent"	:	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0",
+            "accept"	:	"*/*",
+            "accept-language"	:	"de,en-US;q=0.7,en;q=0.3",
+            "accept-encoding"	:	"gzip, deflate, br",
+            "te"	:	"trailers",})
+            
+        s.headers.update({"authorization"	:	f"Bearer {bearer_token}"})
 
-    headers = {
-        'authorization': f'Bearer {bearer_token}',
-    }
+        # activate bearer token and get guest token
+        guest_token = s.post(
+            "https://api.twitter.com/1.1/guest/activate.json").json()["guest_token"]
 
-    response = requests.post('https://api.twitter.com/1.1/guest/activate.json', headers=headers)
-
-    guest_token = response.json()["guest_token"]
 
     assert guest_token is not None, f'Failed to find guest token.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Tweet url: {tweet_url}, main.js url: {mainjs_url}'
 
