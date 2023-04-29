@@ -3,6 +3,11 @@ import json
 
 
 class TwitterLoginClient:
+    """
+    name:TwitterLoginClient
+    author:Desong
+    date:2023-04-29
+    """
 
     def __init__(self, bear_token, proxies={}):
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36"
@@ -13,6 +18,7 @@ class TwitterLoginClient:
         self.x_guest_token = self.__get_guest_token()
         self.flow_token = None
         self.cookie = None
+        self.csrftoken = None
 
     def __get_headers(self):
         return {
@@ -48,8 +54,10 @@ class TwitterLoginClient:
         return response["guest_token"]
 
     def login(self, username=None, password=None):
-        """launch login flow"""
-        print(username+"&"+password)
+        """
+        launch login flow
+        """
+        print(username + "&" + password)
         self.username = username
         self.password = password
         data = {
@@ -79,7 +87,7 @@ class TwitterLoginClient:
         ).json()
         print(response)
         if not self.__error_check(response):
-            
+
             self.flow_token = response.get("flow_token")
             self.content = response
             self.__login_js()
@@ -205,4 +213,8 @@ class TwitterLoginClient:
         if not self.__error_check(response):
             self.flow_token = response.get("flow_token")
             self.content = response
-            self.cookie = self.session.cookies
+            self.cookie = self.session.cookies.get_dict()
+            self.csrftoken = self.__extract_csrf_token()
+
+    def __extract_csrf_token(self):
+        return self.cookie["ct0"]
