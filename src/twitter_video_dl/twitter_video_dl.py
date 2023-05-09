@@ -172,6 +172,9 @@ def extract_mp4s(j, tweet_url, target_all_mp4s = False):
     amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
     ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
 
+    # format - https://video.twimg.com/tweet_video/Fvh6brqWAAQhU9p.mp4
+    tweet_video_pattern = re.compile(r'https://video.twimg.com/tweet_video/[^"]+')
+
     # https://video.twimg.com/ext_tw_video/1451958820348080133/pu/pl/b-CiC-gZClIwXgDz.m3u8?tag=12&container=fmp4
     container_pattern = re.compile(r'https://video.twimg.com/[^"]*container=fmp4')
     media_id = get_associated_media_id(j, tweet_url)
@@ -179,6 +182,11 @@ def extract_mp4s(j, tweet_url, target_all_mp4s = False):
     matches = amplitude_pattern.findall(j)
     matches += ext_tw_pattern.findall(j)
     container_matches = container_pattern.findall(j)
+
+    tweet_video_matches = tweet_video_pattern.findall(j)
+
+    if len(matches) == 0 and len(tweet_video_matches) > 0:
+        return tweet_video_matches
 
     results = {}
 
@@ -367,6 +375,7 @@ def download_video(tweet_url, output_file, target_all_videos=False) :
                     video_counter += 1
     else :
         original_url = repost_check(resp.text)
+
         if original_url :
             download_video(original_url, output_file)
         else :
