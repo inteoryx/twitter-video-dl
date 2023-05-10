@@ -234,9 +234,19 @@ def extract_mp4_fmp4(j):
     Returns a list of URLs, tweet IDs, and resolution information (dictionary type) 
     and a list of tweet IDs as return values.
     """
+
+    # Empty list to store tweet IDs
+    tweet_id_list = []
+    # List of dictionaries containing information about MP4 videos extracted from tweets
+    mp4_info_dict_list = []
+    # List of URLs pointing to MP4 video files extracted from tweets
+    tweet_video_url_list = []
+
     # pattern looks like https://video.twimg.com/amplify_video/1638969830442237953/vid/1080x1920/lXSFa54mAVp7KHim.mp4?tag=16 or https://video.twimg.com/ext_tw_video/1451958820348080133/pu/vid/720x1280/GddnMJ7KszCQQFvA.mp4?tag=12
     amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
     ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
+
+    tweet_video_pattern = re.compile(r'https://video.twimg.com/tweet_video/[^"]+')
 
     # https://video.twimg.com/ext_tw_video/1451958820348080133/pu/pl/b-CiC-gZClIwXgDz.m3u8?tag=12&container=fmp4
     container_pattern = re.compile(r'https://video.twimg.com/[^"]*container=fmp4')
@@ -245,20 +255,20 @@ def extract_mp4_fmp4(j):
     matches = amplitude_pattern.findall(j)
     matches += ext_tw_pattern.findall(j)
     container_matches = container_pattern.findall(j)
-    tweet_id_list = []
-    results = []
+    tweet_video_url_list = tweet_video_pattern.findall(j)
 
     for match in matches:
         url, tweet_id, resolution = match
         tweet_id_list.append(int(tweet_id))
-        results.append({'resolution': resolution, 'url': url})
+        mp4_info_dict_list.append({'resolution': resolution, 'url': url})
 
     tweet_id_list = list(dict.fromkeys(tweet_id_list))
 
     if len(container_matches) > 0:
         for url in container_matches:
-            results.append({'url': url})
-    return tweet_id_list, results
+            mp4_info_dict_list.append({'url': url})
+
+    return tweet_id_list, mp4_info_dict_list, tweet_video_url_list
 
 def download_parts(url, output_filename):
     resp = requests.get(url, stream=True)
@@ -436,10 +446,10 @@ def download_video_for_cs(tweet_url, output_file='') :
     """
     bearer_token, guest_token = get_tokens(tweet_url)
     resp = get_tweet_details(tweet_url, guest_token, bearer_token)
-    mp4_ids, mp4s = extract_mp4_fmp4(resp.text)
+    mp4_ids, mp4s, twvdlst = extract_mp4_fmp4(resp.text)
 
     output_file_name = ''
-    max_resolution_url_list = []
+    video_url_list = []
     num = 0
     
     for mp4_id in mp4_ids:
@@ -453,17 +463,28 @@ def download_video_for_cs(tweet_url, output_file='') :
                     max_resolution = int(width) * int(height)
                     max_resolution_url = mp4['url']
         if max_resolution_url:
-            max_resolution_url_list.append(max_resolution_url)
+            video_url_list.append(max_resolution_url)
 
-    num = len(max_resolution_url_list)
+    if len(twvdlst) > 0:
+        for twvd in twvdlst:
+            video_url_list.append(twvd)
+    
+    num = len(video_url_list)
 
-    for index, max_resolution_url in enumerate(max_resolution_url_list):
+    for index, max_resolution_url in enumerate(video_url_list):
         response = requests.get(max_resolution_url)
         if response.status_code == 200:
             if not os.path.exists('output'):
                 os.makedirs('output')
-            mp4_id = max_resolution_url.split('/ext_tw_video/')[-1].split('/')[0]
-            resolution = max_resolution_url.split('/vid/')[-1].split('/')[0]
+            if '/ext_tw_video/' in max_resolution_url:
+                mp4_id = max_resolution_url.split('/ext_tw_video/')[-1].split('/')[0]
+            elif '/amplify_video/' in max_resolution_url:
+                mp4_id = max_resolution_url.split('/amplify_video/')[-1].split('/')[0]
+            if 'tweet_video' in max_resolution_url:
+                resolution = "gif_to_mp4"
+            else:
+                resolution = max_resolution_url.split('/vid/')[-1].split('/')[0]
+
             if output_file == "":
                 if num > 1:
                     output_file_name = f'{mp4_id}_{resolution}_{index+1}'
