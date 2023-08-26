@@ -1,0 +1,17 @@
+{
+    "markdownlint.config": {
+        //"MD007": false, // Unordered list indentation / 番号なしリストのインデント
+        //"MD009": false, // Trailing spaces / 末尾のスペース
+        //"MD010": false, // Hard tabs / インデントのタブ
+        //"MD014": false, // Dollar signs used before commands without showing output / コマンドの前にドル記号を使用して出力を表示しない
+                          // When writing command line (bash/zsh) in code blocks, considering copy & paste,
+                          // Enable the warning because it is better not to display "$" and "%". (Disable if appearance is important.)
+        "MD024": false,   // Multiple headings with the same content / 同じ内容の複数の見出し
+        "MD025": false,   // Multiple top-level headings in the same document / 同じドキュメント内の複数のトップレベルの見出し
+        "MD026": false,   // Trailing punctuation in heading / 見出しの末尾の句読点
+        "MD033": false,   // Inline HTML / raw HTMLの記入
+                          // Disable MD009 because it uses <br/> for line breaks instead of disabling it.
+        //"MD040": false  // Fenced code blocks should have a language specified / フェンスされたコードブロックには言語を指定する必要があります
+                          // Code block highlighting is recommended.
+    }
+}
