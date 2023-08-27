@@ -7,17 +7,18 @@ This project is based on the original code of the [inteoryx / twitter-video-dl](
 |One video per tweet|Mixing images and videos in one tweet|Mixing images and videos in a thread|
 |:---:|:---:|:---:|
 |<img src="./demo/demo1_v1_30fps_400x866.gif" width="80%">|<img src="./demo/demo2_v1_30fps_400x866.gif" width="80%">|<img src="./demo/demo3_v2_30fps_400x866.gif" width="80%">|
-|[Original Tweet Link](https://twitter.com/i/status/1650829030609022981)|[Original Tweet Link](https://twitter.com/i/status/1650829418863136768)|[Original Tweet Link](https://twitter.com/i/status/1650829765040013320)|
+|[Original Tweet Link](https://twitter.com/i/status/1650829030609022981)|[Original Tweet Link](https://twitter.com/i/status/1650829418863136768)|[Original Tweet Link](https://twitter.com/i/status/1650804112987136000)|
+|[Original Tweet Link(Media)](https://twitter.com/i/status/1650829030609022981)|[Original Tweet Link(Media)](https://twitter.com/tw_7rikazhexde/status/1650808610157662211?s=20)|[Original Tweet Link(Media)](https://twitter.com/tw_7rikazhexde/status/1650812768138981376?s=20)|
 
 ## Usage
 
 ### For Shortcuts
 
-> **Note**ℹ️:
+> **Note**ℹ️:<br />
 > **Currently only Japanese language support is available.**  
 > **It has been tested on iPhone and iPad, but not on Mac.**  
 >
-> **Warning**⚠️:
+> **Warning**⚠️:<br />
 > **Be sure to review the notes, limitations, and comments in the comments when performing shortcuts.**  
 
 1. Download [Shortcuts](https://apps.apple.com/us/app/shortcuts/id915249334) and [a-Shell](https://apps.apple.com/jp/app/a-shell/id1473805438) from the AppStore
@@ -34,7 +35,7 @@ a-Shell-commands](https://github.com/holzschu/a-Shell-commands)
 
 ## For Windows / Mac / Linux
 
-> **Note**ℹ️:
+> **Note**ℹ️:<br />
 > **[Partially the same as twitter-video-dl and depends on it.](https://github.com/inteoryx/twitter-video-dl)**  
 
 1. Clone the repo and pip install -r requirements.txt (just the requests library)
@@ -43,26 +44,26 @@ a-Shell-commands](https://github.com/holzschu/a-Shell-commands)
 
 ```bash
 # File name specified
-python twitter-video-dl-for-sc.py https://twitter.com/willowhalliwell/status/1452460936116244482 output_file_name 0
+python twitter-video-dl-for-sc.py https://twitter.com/i/status/1650804112987136000 output_file_name
 ```
 
 ```bash
 # Without file name
-python twitter-video-dl-for-sc.py https://twitter.com/willowhalliwell/status/1452460936116244482 ""  
+python twitter-video-dl-for-sc.py https://twitter.com/i/status/1650804112987136000 "" 
 ```
 
 Done, now you should have an mp4 file of the highest bitrate version of that video available.
 
 ## Auto Retry Feature
 
-> **Note**ℹ️:
+> **Note**ℹ️:<br />
 > **[Same as twitter-video-dl and depends on it.](https://github.com/inteoryx/twitter-video-dl)**  
 
 From time to time, every week or so, Twitter will add some new request parameters that they expect from callers asking for their content.  Twitter refers to these as "features" or "variables".  The twitter-video-dl script will try to detect when a new feature or variable has been added and automatically accommodate the new element.  This is not foolproof though.  It's possible the script will fail with an error message.  If it does, please open an issue (or send a PR).
 
 ## Other
 
-> **Note**ℹ️:
+> **Note**ℹ️:<br />
 > **[Same as twitter-video-dl and depends on it.](https://github.com/inteoryx/twitter-video-dl)**  
 
 I have tested this with the 10 video files listed in test_videos.txt and it seems to work.  Highly possible there are other variants out there that this won't work for.  If you encounter such, please submit an issue and include the URL that doesn't work.  If the script doesn't work double check you have the URL right.

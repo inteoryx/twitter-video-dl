@@ -82,6 +82,7 @@ def get_details_url(tweet_id, features, variables):
     variables['tweetId'] = tweet_id
 
     return f"https://twitter.com/i/api/graphql/0hWvDhmW8YQ-S_ib3azIrw/TweetResultByRestId?variables={urllib.parse.quote(json.dumps(variables))}&features={urllib.parse.quote(json.dumps(features))}"
+    #return f"https://api.twitter.com/graphql/ncDeACNGIApPMaqGVuF_rw/TweetResultByRestId?variables={urllib.parse.quote(json.dumps(variables))}&features={urllib.parse.quote(json.dumps(features))}"
 
 
 def get_tweet_details(tweet_url, guest_token, bearer_token):
