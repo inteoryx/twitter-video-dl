@@ -169,8 +169,8 @@ def get_associated_media_id(j, tweet_url) :
 
 def extract_mp4s(j, tweet_url, target_all_mp4s = False):
     # pattern looks like https://video.twimg.com/amplify_video/1638969830442237953/vid/1080x1920/lXSFa54mAVp7KHim.mp4?tag=16 or https://video.twimg.com/ext_tw_video/1451958820348080133/pu/vid/720x1280/GddnMJ7KszCQQFvA.mp4?tag=12
-    amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
-    ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
+    amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(avc1/)?(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
+    ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(avc1/)?(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
 
     # format - https://video.twimg.com/tweet_video/Fvh6brqWAAQhU9p.mp4
     tweet_video_pattern = re.compile(r'https://video.twimg.com/tweet_video/[^"]+')
@@ -191,7 +191,7 @@ def extract_mp4s(j, tweet_url, target_all_mp4s = False):
     results = {}
 
     for match in matches:
-        url, tweet_id, resolution = match
+        url, tweet_id, _, resolution = match
         if tweet_id not in results:
             results[tweet_id] = {'resolution': resolution, 'url': url}
         else:
