@@ -145,7 +145,10 @@ def get_tweet_details(tweet_url, guest_token, bearer_token):
     return details
 
 def get_tweet_status_id(tweet_url) :
-    sid_patern = r'https://twitter\.com/[^/]+/status/(\d+)'
+    if "https://twitter" in tweet_url:
+        sid_patern = r'https://twitter\.com/[^/]+/status/(\d+)'
+    elif "https://x" in tweet_url:
+        sid_patern = r'https://x\.com/[^/]+/status/(\d+)'
     if tweet_url[len(tweet_url)-1] != "/" :
         tweet_url = tweet_url + "/"
 
@@ -158,7 +161,10 @@ def get_tweet_status_id(tweet_url) :
 
 def get_associated_media_id(j, tweet_url) :
     sid = get_tweet_status_id(tweet_url)
-    pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/'+sid+'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
+    if "https://twitter" in tweet_url:
+        pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/'+sid+'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
+    elif "https://x" in tweet_url:
+        pattern = r'"expanded_url"\s*:\s*"https://x\.com/[^/]+/status/'+sid+'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
     matches = re.findall(pattern, j)
     if len(matches) > 0 :
         target = matches[0]
