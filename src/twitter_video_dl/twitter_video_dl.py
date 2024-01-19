@@ -32,7 +32,15 @@ def get_tokens(tweet_url):
     """
 
     
-    html = requests.get(tweet_url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0",
+        "Accept": "*/*",
+        "Accept-Language": "de,en-US;q=0.7,en;q=0.3",
+        "Accept-Encoding": "gzip, deflate, br",
+        "TE": "trailers",
+    }
+
+    html = requests.get(tweet_url, headers=headers)
 
     assert html.status_code == 200, f'Failed to get tweet page.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {html.status_code}.  Tweet url: {tweet_url}'
 
@@ -79,9 +87,9 @@ def get_tokens(tweet_url):
 def get_details_url(tweet_id, features, variables):
     # create a copy of variables - we don't want to modify the original
     variables = {**variables}
-    variables['focalTweetId'] = tweet_id
+    variables["tweetId"] = tweet_id
 
-    return f"https://twitter.com/i/api/graphql/wTXkouwCKcMNQtY-NcDgAA/TweetDetail?variables={urllib.parse.quote(json.dumps(variables))}&features={urllib.parse.quote(json.dumps(features))}"
+    return f"https://twitter.com/i/api/graphql/0hWvDhmW8YQ-S_ib3azIrw/TweetResultByRestId?variables={urllib.parse.quote(json.dumps(variables))}&features={urllib.parse.quote(json.dumps(features))}"
 
 
 def get_tweet_details(tweet_url, guest_token, bearer_token):
@@ -145,7 +153,7 @@ def get_tweet_details(tweet_url, guest_token, bearer_token):
     return details
 
 def get_tweet_status_id(tweet_url) :
-    sid_patern = r'https://twitter\.com/[^/]+/status/(\d+)'
+    sid_patern = r'https://(?:x\.com|twitter\.com)/[^/]+/status/(\d+)'
     if tweet_url[len(tweet_url)-1] != "/" :
         tweet_url = tweet_url + "/"
 
@@ -158,7 +166,11 @@ def get_tweet_status_id(tweet_url) :
 
 def get_associated_media_id(j, tweet_url) :
     sid = get_tweet_status_id(tweet_url)
-    pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/'+sid+'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
+    pattern = (
+        r'"expanded_url"\s*:\s*"https://(?:x\.com|twitter\.com)/[^/]+/status/'
+        + sid
+        + r'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
+    )
     matches = re.findall(pattern, j)
     if len(matches) > 0 :
         target = matches[0]
@@ -169,8 +181,8 @@ def get_associated_media_id(j, tweet_url) :
 
 def extract_mp4s(j, tweet_url, target_all_mp4s = False):
     # pattern looks like https://video.twimg.com/amplify_video/1638969830442237953/vid/1080x1920/lXSFa54mAVp7KHim.mp4?tag=16 or https://video.twimg.com/ext_tw_video/1451958820348080133/pu/vid/720x1280/GddnMJ7KszCQQFvA.mp4?tag=12
-    amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
-    ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
+    amplitude_pattern = re.compile(r'(https://video.twimg.com/amplify_video/(\d+)/vid/(avc1/)?(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
+    ext_tw_pattern = re.compile(r'(https://video.twimg.com/ext_tw_video/(\d+)/pu/vid/(avc1/)?(\d+x\d+)/[^.]+.mp4\?tag=\d+)')
 
     # format - https://video.twimg.com/tweet_video/Fvh6brqWAAQhU9p.mp4
     tweet_video_pattern = re.compile(r'https://video.twimg.com/tweet_video/[^"]+')
@@ -191,7 +203,7 @@ def extract_mp4s(j, tweet_url, target_all_mp4s = False):
     results = {}
 
     for match in matches:
-        url, tweet_id, resolution = match
+        url, tweet_id, _, resolution = match
         if tweet_id not in results:
             results[tweet_id] = {'resolution': resolution, 'url': url}
         else:
@@ -313,7 +325,11 @@ def repost_check(j, exclude_replies=True) :
         #We extract the source status id (ssid)
         ssid = json.loads("{" + matches[0] + "}")["source_status_id_str"]
         #We plug it in this regular expression to find expanded_url (the original tweet url)
-        expanded_url_pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/' + ssid + '[^"]+"'
+        expanded_url_pattern = (
+            r'"expanded_url"\s*:\s*"https://(?:x\.com|twitter\.com)/[^/]+/status/'
+            + ssid
+            + '[^"]+"'
+        )
         matches2 = re.findall(expanded_url_pattern, j)
 
         if len(matches2) > 0 :
@@ -330,7 +346,11 @@ def repost_check(j, exclude_replies=True) :
         ssids = list(set(ssids))
         if len(ssids) > 0 :
             for ssid in ssids :
-                expanded_url_pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/' + ssid + '[^"]+"'
+                expanded_url_pattern = (
+                    r'"expanded_url"\s*:\s*"https://(?:x\.com|twitter\.com)/[^/]+/status/'
+                    + ssid
+                    + '[^"]+"'
+                )
                 matches2 = re.findall(expanded_url_pattern, j)
                 if len(matches2) > 0:
                     status_urls = []
