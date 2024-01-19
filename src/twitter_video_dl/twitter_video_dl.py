@@ -145,10 +145,7 @@ def get_tweet_details(tweet_url, guest_token, bearer_token):
     return details
 
 def get_tweet_status_id(tweet_url) :
-    if "https://twitter" in tweet_url:
-        sid_patern = r'https://twitter\.com/[^/]+/status/(\d+)'
-    elif "https://x" in tweet_url:
-        sid_patern = r'https://x\.com/[^/]+/status/(\d+)'
+    sid_patern = r'https://(?:x\.com|twitter\.com)/[^/]+/status/(\d+)'
     if tweet_url[len(tweet_url)-1] != "/" :
         tweet_url = tweet_url + "/"
 
@@ -161,10 +158,11 @@ def get_tweet_status_id(tweet_url) :
 
 def get_associated_media_id(j, tweet_url) :
     sid = get_tweet_status_id(tweet_url)
-    if "https://twitter" in tweet_url:
-        pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/'+sid+'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
-    elif "https://x" in tweet_url:
-        pattern = r'"expanded_url"\s*:\s*"https://x\.com/[^/]+/status/'+sid+'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
+    pattern = (
+        r'"expanded_url"\s*:\s*"https://(?:x\.com|twitter\.com)/[^/]+/status/'
+        + sid
+        + r'/[^"]+",\s*"id_str"\s*:\s*"\d+",'
+    )
     matches = re.findall(pattern, j)
     if len(matches) > 0 :
         target = matches[0]
@@ -319,7 +317,11 @@ def repost_check(j, exclude_replies=True) :
         #We extract the source status id (ssid)
         ssid = json.loads("{" + matches[0] + "}")["source_status_id_str"]
         #We plug it in this regular expression to find expanded_url (the original tweet url)
-        expanded_url_pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/' + ssid + '[^"]+"'
+        expanded_url_pattern = (
+            r'"expanded_url"\s*:\s*"https://(?:x\.com|twitter\.com)/[^/]+/status/'
+            + ssid
+            + '[^"]+"'
+        )
         matches2 = re.findall(expanded_url_pattern, j)
 
         if len(matches2) > 0 :
@@ -336,7 +338,11 @@ def repost_check(j, exclude_replies=True) :
         ssids = list(set(ssids))
         if len(ssids) > 0 :
             for ssid in ssids :
-                expanded_url_pattern = r'"expanded_url"\s*:\s*"https://twitter\.com/[^/]+/status/' + ssid + '[^"]+"'
+                expanded_url_pattern = (
+                    r'"expanded_url"\s*:\s*"https://(?:x\.com|twitter\.com)/[^/]+/status/'
+                    + ssid
+                    + '[^"]+"'
+                )
                 matches2 = re.findall(expanded_url_pattern, j)
                 if len(matches2) > 0:
                     status_urls = []
