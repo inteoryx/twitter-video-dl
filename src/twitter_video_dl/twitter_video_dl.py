@@ -32,7 +32,15 @@ def get_tokens(tweet_url):
     """
 
     
-    html = requests.get(tweet_url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:84.0) Gecko/20100101 Firefox/84.0",
+        "Accept": "*/*",
+        "Accept-Language": "de,en-US;q=0.7,en;q=0.3",
+        "Accept-Encoding": "gzip, deflate, br",
+        "TE": "trailers",
+    }
+
+    html = requests.get(tweet_url, headers=headers)
 
     assert html.status_code == 200, f'Failed to get tweet page.  If you are using the correct Twitter URL this suggests a bug in the script.  Please open a GitHub issue and copy and paste this message.  Status code: {html.status_code}.  Tweet url: {tweet_url}'
 
